@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -75,7 +76,9 @@ private fun ContestantsApp() {
     var showSettings by remember { mutableStateOf(false) }
     var limited by remember { mutableStateOf(prefs.getBoolean("limited", false)) }
     var maxScore by remember { mutableIntStateOf(prefs.getInt("maxScore", 100)) }
-    var dark by remember { mutableStateOf(prefs.getBoolean("dark", false)) }
+    var themeMode by remember { mutableStateOf(prefs.getString("themeMode", "system") ?: "system") }
+    var scoreTarget by remember { mutableStateOf<Contestant?>(null) }
+    val dark = when (themeMode) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
 
     LaunchedEffect(people.toList()) {
         val array = JSONArray()
@@ -84,8 +87,8 @@ private fun ContestantsApp() {
         }
         prefs.edit().putString("people", array.toString()).apply()
     }
-    LaunchedEffect(limited, maxScore, dark) {
-        prefs.edit().putBoolean("limited", limited).putInt("maxScore", maxScore).putBoolean("dark", dark).apply()
+    LaunchedEffect(limited, maxScore, themeMode) {
+        prefs.edit().putBoolean("limited", limited).putInt("maxScore", maxScore).putString("themeMode", themeMode).apply()
     }
 
     val sorted = people.filter { it.name.contains(query.trim(), ignoreCase = true) }
@@ -176,16 +179,7 @@ private fun ContestantsApp() {
                             items(sorted, key = { it.id }) { person ->
                                 ContestantCard(
                                     person = person,
-                                    onIncrease = {
-                                        val index = people.indexOfFirst { it.id == person.id }
-                                        if (index >= 0 && (!limited || people[index].score < maxScore))
-                                            people[index] = people[index].copy(score = people[index].score + 1)
-                                    },
-                                    onDecrease = {
-                                        val index = people.indexOfFirst { it.id == person.id }
-                                        if (index >= 0 && people[index].score > 0)
-                                            people[index] = people[index].copy(score = people[index].score - 1)
-                                    },
+                                    onChangeScore = { scoreTarget = person },
                                     onEdit = { editing = person; showEditor = true },
                                     onDelete = { people.removeAll { it.id == person.id } },
                                     maxScore = if (limited) maxScore else null
@@ -194,6 +188,22 @@ private fun ContestantsApp() {
                         }
                     }
                 }
+            }
+
+            if (scoreTarget != null) {
+                ScoreChangeDialog(
+                    person = scoreTarget!!,
+                    onDismiss = { scoreTarget = null },
+                    onApply = { amount, increase ->
+                        val index = people.indexOfFirst { it.id == scoreTarget!!.id }
+                        if (index >= 0) {
+                            val current = people[index].score
+                            val updated = if (increase) current + amount else (current - amount).coerceAtLeast(0)
+                            people[index] = people[index].copy(score = if (limited) updated.coerceAtMost(maxScore) else updated)
+                        }
+                        scoreTarget = null
+                    }
+                )
             }
 
             if (showEditor) {
@@ -214,9 +224,9 @@ private fun ContestantsApp() {
 
             if (showSettings) {
                 SettingsDialog(
-                    limited = limited, maxScore = maxScore, dark = dark,
+                    limited = limited, maxScore = maxScore, themeMode = themeMode,
                     onLimited = { limited = it }, onMax = { maxScore = it },
-                    onDark = { dark = it }, onDismiss = { showSettings = false }
+                    onThemeMode = { themeMode = it }, onDismiss = { showSettings = false }
                 )
             }
         }
@@ -238,8 +248,7 @@ private fun SummaryCard(label: String, value: String, icon: androidx.compose.ui.
 @Composable
 private fun ContestantCard(
     person: Contestant,
-    onIncrease: () -> Unit,
-    onDecrease: () -> Unit,
+    onChangeScore: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     maxScore: Int?
@@ -271,14 +280,10 @@ private fun ContestantCard(
                 Text("نقطة", color = Muted, style = MaterialTheme.typography.labelSmall)
             }
             Spacer(Modifier.width(8.dp))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                FilledTonalIconButton(onClick = onIncrease, modifier = Modifier.size(34.dp)) {
-                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
-                }
-                Spacer(Modifier.height(4.dp))
-                FilledTonalIconButton(onClick = onDecrease, modifier = Modifier.size(34.dp)) {
-                    Icon(Icons.Default.ExpandMore, null, modifier = Modifier.size(18.dp))
-                }
+            FilledTonalButton(onClick = onChangeScore, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp), shape = RoundedCornerShape(12.dp)) {
+                Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("تعديل")
             }
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "خيارات") }
@@ -316,37 +321,46 @@ private fun EditorDialog(
 }
 
 @Composable
-private fun SettingsDialog(
-    limited: Boolean,
-    maxScore: Int,
-    dark: Boolean,
-    onLimited: (Boolean) -> Unit,
-    onMax: (Int) -> Unit,
-    onDark: (Boolean) -> Unit,
-    onDismiss: () -> Unit
-) {
+private fun ScoreChangeDialog(person: Contestant, onDismiss: () -> Unit, onApply: (Int, Boolean) -> Unit) {
+    var amountText by remember(person.id) { mutableStateOf("") }
+    val amount = amountText.toIntOrNull() ?: 0
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("تعديل نقاط ${person.name}", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("الرصيد الحالي: ${person.score} نقطة", color = Muted)
+                OutlinedTextField(value = amountText, onValueChange = { amountText = it.filter(Char::isDigit).take(7) }, label = { Text("اكتب عدد النقاط") }, placeholder = { Text("مثال: 5") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
+                Text("بعد إدخال الرقم اختر العملية:", style = MaterialTheme.typography.bodySmall, color = Muted)
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onApply(amount, true) }, enabled = amount > 0) { Text("زيادة") }
+                Button(onClick = { onApply(amount, false) }, enabled = amount > 0, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("خصم") }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
+    )
+}
+
+@Composable
+private fun SettingsDialog(limited: Boolean, maxScore: Int, themeMode: String, onLimited: (Boolean) -> Unit, onMax: (Int) -> Unit, onThemeMode: (String) -> Unit, onDismiss: () -> Unit) {
     var maxText by remember(maxScore) { mutableStateOf(maxScore.toString()) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("الإعدادات", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text("نظام النقاط المحدود")
-                    Switch(checked = limited, onCheckedChange = onLimited)
-                }
-                if (limited) {
-                    OutlinedTextField(value = maxText, onValueChange = { maxText = it.filter(Char::isDigit).take(7) }, label = { Text("الحد الأعلى للنقاط") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
-                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) { Text("نظام النقاط المحدود"); Switch(checked = limited, onCheckedChange = onLimited) }
+                if (limited) OutlinedTextField(value = maxText, onValueChange = { maxText = it.filter(Char::isDigit).take(7) }, label = { Text("الحد الأعلى للنقاط") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
                 HorizontalDivider()
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text("الوضع الداكن")
-                    Switch(checked = dark, onCheckedChange = onDark)
+                Text("مظهر التطبيق", fontWeight = FontWeight.Bold)
+                listOf("system" to "تلقائي حسب الجهاز", "light" to "فاتح", "dark" to "داكن").forEach { (value, label) ->
+                    Row(modifier = Modifier.fillMaxWidth().clickable { onThemeMode(value) }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = themeMode == value, onClick = { onThemeMode(value) }); Spacer(Modifier.width(8.dp)); Text(label) }
                 }
             }
         },
-        confirmButton = {
-            Button(onClick = { onMax((maxText.toIntOrNull() ?: 100).coerceAtLeast(1)); onDismiss() }) { Text("تم") }
-        }
+        confirmButton = { Button(onClick = { onMax((maxText.toIntOrNull() ?: 100).coerceAtLeast(1)); onDismiss() }) { Text("تم") } }
     )
 }
