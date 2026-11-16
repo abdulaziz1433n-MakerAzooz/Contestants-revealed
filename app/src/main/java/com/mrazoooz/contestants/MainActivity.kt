@@ -181,7 +181,6 @@ class MainActivity: ComponentActivity() {
          item { SettingsCard("المظهر") { listOf("system" to "تلقائي","light" to "فاتح","dark" to "داكن").forEach{(v,n)->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(theme==v,{theme=v});Text(n)}} } }
          item { SettingsCard("التصميم") { Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={design=1},Modifier.weight(1f)){Text("الأول")};OutlinedButton(onClick={design=2},Modifier.weight(1f)){Text("الثاني")}};Text(if(design==1)"قائمة جانبية وبطاقات." else "لوحة حديثة وشريط تنقل سفلي.") } }
          item { SettingsCard("النقاط") { Row(verticalAlignment=Alignment.CenterVertically){Text("تفعيل الحد الأعلى",Modifier.weight(1f));Switch(limited,{limited=it})};if(limited) OutlinedTextField(maxScore.toString(),{maxScore=it.toIntOrNull()?.coerceAtLeast(1)?:maxScore},label={Text("الحد الأعلى")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number)) } }
-         item { SettingsCard("الخط") { Text("خط IBM Plex Sans Arabic مطلوب للتصميم الثاني؛ سيُضاف كملف خط مستقل قبل اعتماد إصدار البناء.") } }
         }
        }
       }
