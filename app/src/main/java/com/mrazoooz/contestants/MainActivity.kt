@@ -52,6 +52,7 @@ class MainActivity: ComponentActivity() {
  override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContent { App() } }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable private fun App() {
  val ctx=LocalContext.current
  val prefs=remember { ctx.getSharedPreferences("contestants_store",0) }
