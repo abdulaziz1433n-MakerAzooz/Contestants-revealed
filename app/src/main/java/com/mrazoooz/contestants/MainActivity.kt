@@ -70,6 +70,9 @@ class MainActivity: ComponentActivity() {
  var accentName by remember { mutableStateOf(prefs.getString("accentName","أخضر") ?: "أخضر") }
  var design by remember { mutableIntStateOf(prefs.getInt("design",1)) }
  var drawer by remember { mutableStateOf(false) }
+ val drawerState = rememberDrawerState(DrawerValue.Closed)
+ LaunchedEffect(drawer) { if (drawer) drawerState.open() else drawerState.close() }
+ LaunchedEffect(drawerState.currentValue) { if (drawerState.currentValue == DrawerValue.Closed) drawer = false }
  var field by remember { mutableStateOf("الكل") }
  var count by remember { mutableIntStateOf(5) }
  var questions by remember { mutableStateOf(emptyList<Question>()) }
@@ -87,7 +90,7 @@ class MainActivity: ComponentActivity() {
  val sorted=people.filter{it.name.contains(query,true)}.sortedByDescending{it.score}
  CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
   MaterialTheme(colorScheme=scheme) {
-   ModalNavigationDrawer(drawerState=rememberDrawerState(if(drawer) DrawerValue.Open else DrawerValue.Closed),drawerContent={
+   ModalNavigationDrawer(drawerState=drawerState,drawerContent={
     ModalDrawerSheet {
      Text("كشف المتسابقين",Modifier.padding(20.dp),style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
      listOf("الرئيسية","المتسابقون","الأسئلة العشوائية","الإعدادات").forEach { label ->
