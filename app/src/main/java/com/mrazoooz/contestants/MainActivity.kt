@@ -122,14 +122,56 @@ class MainActivity: ComponentActivity() {
       }
       when(page) {
        "الرئيسية" -> {
-        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-         Stat("المتسابقون",people.size.toString(),Modifier.weight(1f))
-         Stat("أعلى نتيجة",(people.maxOfOrNull{it.score}?:0).toString(),Modifier.weight(1f))
-         Stat("مجموع النقاط",people.sumOf{it.score}.toString(),Modifier.weight(1f))
+        if (design == 1) {
+         Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+          Stat("المتسابقون",people.size.toString(),Modifier.weight(1f))
+          Stat("أعلى نتيجة",(people.maxOfOrNull{it.score}?:0).toString(),Modifier.weight(1f))
+          Stat("مجموع النقاط",people.sumOf{it.score}.toString(),Modifier.weight(1f))
+         }
+         Spacer(Modifier.height(16.dp))
+         Text("أفضل المتسابقين",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
+         LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)) { items(sorted.take(5),key={it.id}){ PersonRow(it,limited,maxScore,{scorePerson=it},{edit=it;editor=true},{people.removeAll{p->p.id==it.id}}) } }
+        } else {
+         LazyColumn(verticalArrangement=Arrangement.spacedBy(14.dp),contentPadding=PaddingValues(top=14.dp,bottom=24.dp)) {
+          item {
+           Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(28.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primary)) {
+            Column(Modifier.fillMaxWidth().padding(22.dp)) {
+             Text("مساحة التحدّي",color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.8f),style=MaterialTheme.typography.titleMedium)
+             Text("من يتصدر المنافسة؟",color=MaterialTheme.colorScheme.onPrimary,style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Black)
+             Spacer(Modifier.height(8.dp))
+             Text("أدر المتسابقين، تابع النقاط، وابدأ جولة جديدة.",color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.9f))
+             Spacer(Modifier.height(16.dp))
+             Button(onClick={page="الأسئلة العشوائية"},colors=ButtonDefaults.buttonColors(containerColor=MaterialTheme.colorScheme.surface,contentColor=MaterialTheme.colorScheme.primary)) { Icon(Icons.Default.Quiz,null); Spacer(Modifier.width(8.dp)); Text("ابدأ تحدياً") }
+            }
+           }
+          }
+          item {
+           Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            SecondStat("عدد المشاركين",people.size.toString(),Icons.Default.Groups,Modifier.weight(1f))
+            SecondStat("مجموع النقاط",people.sumOf{it.score}.toString(),Icons.Default.Star,Modifier.weight(1f))
+           }
+          }
+          item {
+           Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp)) {
+            Column(Modifier.padding(16.dp)) {
+             Row(verticalAlignment=Alignment.CenterVertically) {
+              Column(Modifier.weight(1f)) { Text("قائمة الصدارة",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Black); Text("أفضل خمسة متسابقين",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+              Text("TOP 5",color=MaterialTheme.colorScheme.primary,fontWeight=FontWeight.ExtraBold)
+             }
+             Spacer(Modifier.height(12.dp))
+             if(sorted.isEmpty()) Text("لا يوجد متسابقون حتى الآن. أضف أول متسابق للبدء.",color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(vertical=18.dp))
+             else sorted.take(5).forEachIndexed { index,p ->
+              SecondPersonCard(index+1,p,onClick={scorePerson=p},onEdit={edit=p;editor=true})
+              if(index<sorted.take(5).lastIndex) HorizontalDivider(Modifier.padding(vertical=8.dp))
+             }
+            }
+           }
+          }
+          item {
+           OutlinedButton(onClick={page="المتسابقون"},Modifier.fillMaxWidth()) { Text("عرض جميع المتسابقين"); Spacer(Modifier.width(6.dp)); Icon(Icons.Default.ArrowBack,null) }
+          }
+         }
         }
-        Spacer(Modifier.height(16.dp))
-        Text("أفضل المتسابقين",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
-        LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)) { items(sorted.take(5),key={it.id}){ PersonRow(it,limited,maxScore,{scorePerson=it},{edit=it;editor=true},{people.removeAll{p->p.id==it.id}}) } }
        }
        "المتسابقون" -> {
         OutlinedTextField(query,{query=it},Modifier.fillMaxWidth(),placeholder={Text("ابحث عن متسابق")},singleLine=true)
@@ -205,6 +247,18 @@ class MainActivity: ComponentActivity() {
  }
 }
 
+@Composable private fun SecondStat(label:String,value:String,icon: androidx.compose.ui.graphics.vector.ImageVector,modifier:Modifier=Modifier){
+ Card(modifier,shape=RoundedCornerShape(20.dp)){ Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically){ Box(Modifier.size(38.dp).background(MaterialTheme.colorScheme.primaryContainer,CircleShape),contentAlignment=Alignment.Center){Icon(icon,null,tint=MaterialTheme.colorScheme.primary)}; Spacer(Modifier.width(9.dp)); Column { Text(value,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Black,color=MaterialTheme.colorScheme.primary); Text(label,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant) } } }
+}
+@Composable private fun SecondPersonCard(rank:Int,p:Contestant,onClick:()->Unit,onEdit:()->Unit){
+ Row(Modifier.fillMaxWidth().clickable(onClick=onClick).padding(vertical=5.dp),verticalAlignment=Alignment.CenterVertically){
+  Box(Modifier.size(34.dp).background(if(rank==1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,CircleShape),contentAlignment=Alignment.Center){Text(rank.toString(),fontWeight=FontWeight.ExtraBold,color=if(rank==1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)}
+  Spacer(Modifier.width(12.dp))
+  Column(Modifier.weight(1f)){Text(p.name,fontWeight=FontWeight.Bold);Text("المركز $rank",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+  Column(horizontalAlignment=Alignment.End){Text(p.score.toString(),style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Black,color=MaterialTheme.colorScheme.primary);Text("نقطة",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+  IconButton(onClick=onEdit){Icon(Icons.Default.Edit,null)}
+ }
+}
 @Composable private fun Stat(label:String,value:String,modifier:Modifier=Modifier){Card(modifier){Column(Modifier.padding(10.dp)){Text(value,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.primary);Text(label,style=MaterialTheme.typography.labelSmall)}}}
 @Composable private fun PersonRow(p:Contestant,limited:Boolean,max:Int,onScore:()->Unit,onEdit:()->Unit,onDelete:()->Unit){
  var menu by remember{mutableStateOf(false)}
